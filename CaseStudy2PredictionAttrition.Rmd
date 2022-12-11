@@ -1,0 +1,114 @@
+---
+title: "CaseStudy2NoAttrition"
+author: "Vo Nguyen"
+date: "2022-11-30"
+output: html_document
+---
+```{r, echo=FALSE}
+### Needed Packages
+library(XML) #xml_Parse
+library(dplyr)
+library(tidyr)
+library(stringi)
+library(rvest) #html_table, html_node
+library(ggplot2)
+library(RCurl) #getURL
+library(class)
+library(caret)
+library(e1071)
+library(stringr)
+library(naniar)
+library(rmarkdown)
+library(readxl)
+```
+
+
+```{r,echo=FALSE, message=FALSE,warning=FALSE,results="hide"}
+set.seed(13)
+naive_data=employeeData3
+
+model2 = naive_data %>% select(c("NAge","NDailyRate","DistanceFromHome", "EnvironmentSatisfaction", "NHourlyRate", "JobInvolvement", "JobLevel", "JobSatisfaction", "NMonthylyIncome", "NMonthlyRate", "NumCompaniesWorked", "OverTime", "NPercentSalaryHike", "PerformanceRating", "RelationshipSatisfaction", "YearsAtCompany", "YearsInCurrentRole","YearsSinceLastPromotion", "YearsWithCurrManager", "BTRare","BTFreq","BTNone","DepHR","DepSales","EFHR","EFLS","EFM","EFMed","EFT","EFOther","Male","Female","JRHR","JRLT" ,"JRManager","JRMD","JRRD","JRRS","JRSE","JRSR", "Divorced","Single","Married","StockOptionLevel","TotalWorkingYears","TrainingTimesLastYear","WorkLifeBalance","Attrition"))
+model2$Attrition = as.factor(model2$Attrition)
+
+trainIndices = sample(1:dim(model2)[1],round(.70 * dim(model2)[1]))
+train = model2[trainIndices,]
+test = model2[-trainIndices,]
+
+classifier1 = naiveBayes(model2[,c(7,9,12,6,11,10,13,15,20,21,23,24,26,28)],model2$Attrition)
+
+```
+
+```{r setup, include=FALSE}
+employeetestdata=CaseStudy2CompSet_No_Attrition_1_
+
+employeetestdata = employeetestdata
+
+employeetestdata$NAge=scale(employeetestdata$Age)
+employeetestdata$NMonthylyIncome=scale(employeetestdata$MonthlyIncome)
+employeetestdata$NHourlyRate=scale(employeetestdata$HourlyRate)
+employeetestdata$NMonthlyRate=scale(employeetestdata$MonthlyRate)
+employeetestdata$NPercentSalaryHike=scale(employeetestdata$PercentSalaryHike)
+employeetestdata$NDailyRate=scale(employeetestdata$DailyRate)
+
+employeetestdata$OverTime = ifelse(employeetestdata$OverTime=="Yes",1,0)
+
+
+employeetestdata$BTNone = ifelse(employeetestdata$BusinessTravel=="Non-Travel",1,0)
+employeetestdata$BTRare=ifelse(employeetestdata$BusinessTravel=="Travel_Rarely",1,0)
+employeetestdata$BTFreq=ifelse(employeetestdata$BusinessTravel=="Travel_Frequently",1,0)
+
+employeetestdata$DepHR=ifelse(employeetestdata$Department=="Human Resources",1,0)
+employeetestdata$DepSales=ifelse(employeetestdata$Department=="Sales",1,0)
+
+employeetestdata$EFHR=ifelse(employeetestdata$EducationField=="Human Resources",1,0)
+employeetestdata$EFLS=ifelse(employeetestdata$EducationField=="Life Sciences",1,0)
+employeetestdata$EFM=ifelse(employeetestdata$EducationField=="Marketing",1,0)
+employeetestdata$EFMed=ifelse(employeetestdata$EducationField=="Medical",1,0)
+employeetestdata$EFT=ifelse(employeetestdata$EducationField=="Technical Degree",1,0)
+employeetestdata$EFOther=ifelse(employeetestdata$EducationField=="Other",1,0)
+
+employeetestdata$Male=ifelse(employeetestdata$Gender=="Male",1,0)
+employeetestdata$Female=ifelse(employeetestdata$Gender=="Female",1,0)
+
+employeetestdata$JRHR=ifelse(employeetestdata$JobRole=="Healthcare Representative",1,0)
+employeetestdata$JRLT=ifelse(employeetestdata$JobRole=="Laboratory Technician",1,0)
+employeetestdata$JRManager=ifelse(employeetestdata$JobRole=="Manager",1,0)
+employeetestdata$JRMD=ifelse(employeetestdata$JobRole=="Manufacturing Director",1,0)
+employeetestdata$JRRD=ifelse(employeetestdata$JobRole=="Research Director",1,0)
+employeetestdata$JRRS=ifelse(employeetestdata$JobRole=="Research Scientist",1,0)
+employeetestdata$JRSE=ifelse(employeetestdata$JobRole=="Sales Executive",1,0)
+employeetestdata$JRSR=ifelse(employeetestdata$JobRole=="Sales Representative",1,0)
+
+employeetestdata$Divorced=ifelse(employeetestdata$MaritalStatus=="Divorced",1,0)
+employeetestdata$Single=ifelse(employeetestdata$MaritalStatus=="Single",1,0)
+employeetestdata$Married=ifelse(employeetestdata$MaritalStatus=="Married",1,0)
+```
+
+```{r setup, include=FALSE}
+pred = predict(classifier1,newdata=test)
+CM = confusionMatrix(table(test$Attrition,pred))
+CM
+```
+
+
+
+
+
+
+
+```{r setup, include=FALSE}
+
+prednoattrition = predict(classifier1,newdata=employeetestdata)
+
+employeetestdata$Attrition=unlist(prednoattrition)
+
+Case2PredictionsAttritionNguyen = data.frame(c(employeetestdata$ID),c(employeetestdata$Attrition))
+
+Case2PredictionsAttritionNguyen
+
+write.csv(Case2PredictionsAttritionNguyen,"F:\\Doing Data Science\\Project 2\\Excel\\Case2PredictionsNguyen Attrition.csv")
+
+
+
+```
+
