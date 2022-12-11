@@ -1,0 +1,536 @@
+---
+title: "Case Study 2: Attrition and Salary EDA & Analysis"
+author: "Vo Nguyen"
+date: "2022-12-06"
+output: html_document
+---
+
+# Introduction
+
+**YouTube Presentation:** https://www.youtube.com/watch?v=3SXL037Iprc
+**RShiny App:**https://vochannguyen.shinyapps.io/VoShiny2/
+
+We are working with DDSAnalytics to create a model to predict employee turnover using the employee data. We will performing multiple models to find the best fitting model to identity factors that lead to attrition. We will also identiy the top three factors that contribute to turnover. Additionally, we will predict salary using our given test dataset.
+
+**Case Study 2 Analysis Agenda:**  
+1) Explore Graphs and Trends in Data for different possible factors of Attrition for Numerical and Categorical Responses 
+2) Determine Influential Factors in Attrition  
+3) Find the Best Model for Attrition - KNN or Naive Bayes
+4) Run the Attrition Model using a Test Set 
+4) Run a Multiple Linear Regression for Salary Prediction using All Predictors and Use the Statistical Significant Predictors
+
+**My Top Three Predictors for Attrition**  
+1) Monthly Income  
+2) Job Level  
+3) Overtime
+
+**Salary Predictors:** 
+
+# Data Overview
+
++ Our dataset contains numerical and categorical variables. We will be using dummy variables for our categorical variables. 
++ We will remove the Over18 data from our analysis because it has one value of "Y"
++ We will remove Standard Hours from our analysis because it contains one value of 80
++ ID is a numerical variable to describe each observation, we are not going to use for our analysis
+
+```{r setup, message=FALSE,warning=FALSE}
+#Needed Libraries
+library(XML)
+library(dplyr)
+library(tidyr)
+library(stringi)
+library(ggplot2)
+library(class)
+library(caret)
+library(e1071)
+library(stringr)
+library(naniar)
+library(rmarkdown)
+library(readxl)
+library(GGally)
+```
+
+```{r}
+#Read Data
+employeeData <- read.csv("CaseStudy2-data.csv")
+employeeData=employeeData
+#Data Overview
+str(employeeData)
+```
+
+### Checking for NA's
+There are no NAs in our dataset
+```{r}
+#Check for NA's in each column dataset
+colSums(is.na(employeeData))
+```
+
+### Summary of Attrition
++ There are more "No" than "Yes" in the Attrition column
++ No (730) and Yes (140)  
++ Our first course of action to compare the Attrition to our Numerical Predictors that are related to money. We found that Job Level and Monthly Income had different level of means, which could contribute to Attrition. 
+```{r,message=FALSE,warning=FALSE}
+#The count of Attrition of Yes and No
+employeeData %>% count(Attrition)
+
+#Attrition Plot Count
+employeeData %>% ggplot(aes(x=Attrition,fill=Attrition)) + 
+  geom_bar()+
+  ggtitle("Attrition Count") +
+  xlab("Attrition")+ylab("Count")
+
+### Pairs Plot for Attrition to Numerical Values
+employeeData %>% select_if(is.numeric) %>% mutate(Attrition=employeeData$Attrition) %>% select(c(3,9,11,13,14,28)) %>% ggpairs(aes(colour = Attrition))
+
+
+
+
+
+```
+
+### 1st Influential Predictor: Monthly Income
+#### Exploring Monthly Income 
++ According to our exploratory data analysis, we found that monthly income has a strong indication of Attrition.  
++ The histogram plot of Attrition count shows a right skew, but the data has an equal similar distribution for both yes and no.   
++ I performed the Welch's Two-Sample T-test to determine mean different, and the results were that was the mean different is not zero
++ In addition, the mean income of No is greater than the mean income of Yes. Additionally, I created a graph to compare Attrition to the Predictors that are influenced by money.  
+```{r,message=FALSE,warning=FALSE}
+### Attrition Vs. MonthlyIncome
+employeeData %>% ggplot(aes(x=MonthlyIncome,fill=Attrition))+
+  geom_histogram()+
+  ggtitle("Attrition Vs. MonthlyIncome")
+
+### Mean Monthly Income of Attrition
+employeeData %>% group_by(Attrition) %>% summarise(compareincomes=mean(MonthlyIncome))
+
+### Welch's Two-Sample T-test to determine Difference in means for Monthly Income
+t.test(employeeData$MonthlyIncome~employeeData$Attrition,data=employeeData)
+```
+### 2nd Influential Predictor: Job Level
+#### Exploring Job Level 
++ Job level has an affect on our model because if we look at our histogram, we can see some sort of right-skewness that equates to having more "Yes" when you're Job Level is lower. This makes sense because if you are at the bottom of your Job Level, you are more likely to quit, as opposed to moving up on your job Level, which means higher man, you are probably less likely to quit your job. 
++ We plotted a jitter plot MOnthly Income vs. JobLevel, and found that there some distinct features of more "Yes" at the lower end of the Monthly Income and Job Levels.  
++ In addition, we performed a Welch's Two-Sample T-test, and determine that there the mean difference is not zero.
+
+```{r,message=FALSE,warning=FALSE}
+### Attrition Vs. Job Level Histogram
+employeeData %>% ggplot(aes(x=JobLevel,fill=Attrition))+
+  geom_histogram()+
+  ggtitle("Attrition Vs. JobLevel") 
+
+### Monthly Income Vs. Job Level Jitter Plot
+employeeData %>% ggplot(aes(x=JobLevel,y=MonthlyIncome,fill=Attrition, color=Attrition))+
+  geom_jitter(stat="identity")+
+  ggtitle("MonthlyIncome Vs. JobLevel") 
+
+### Welch's Two Sample T-test for Job Level
+t.test(employeeData$JobLevel~employeeData$Attrition,data=employeeData)
+```
+
+### 3rd Influential Predictor: OverTime
+#### Exploring Overtime
++ Our third influential predictor is the categorical variable "Overtime."  
++ Over has the response "Yes" or "No"
++ Overtime is cleared skewed in that more people who have overtime will tend to quit.  
++ Overtime compared to the other cateogrical variables has a different mean among the Yes and No. 
+
+```{r,message=FALSE,warning=FALSE}
+### Attrition Vs. OverTime
+employeeData %>% 
+  ggplot(aes(x=OverTime,fill=Attrition))+
+  geom_bar(position="fill")+ggtitle("Attrition Vs. Overtime")+
+  scale_y_continuous(labels = scales::percent)
+```
+
+### EDA on Other Categorical Variables
+When we graphs the rest of the categorical variables, we saw some interesting trends. Sales Representatives tend to quit more than the other job roles. Job Satisfaction is pretty even in the "Yes". Single people tend to quit more than Married or Divorced. Relationship Satisfaction is even as well. Business Travel has a larger population in "Yes" for Travel Rarely, but I believe that Overtime plays more of a major role in Attrition.
+
+```{r,message=FALSE,warning=FALSE}
+
+### Percentage Compares for Job Role
+ggplot(employeeData, aes(x = JobRole, fill = Attrition)) +
+  geom_bar(position = "fill") +
+  scale_y_continuous(labels = scales::percent)+ 
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+
+
+### Attrition Vs. Job Satisfaction
+employeeData %>% 
+  ggplot(aes(x=JobSatisfaction,fill=Attrition))+
+  geom_bar()+
+  ggtitle("Attrition Vs. Job Satisfaction") 
+
+### Attrition vs Marital Status
+employeeData %>% 
+  ggplot(aes(x=MaritalStatus,fill=Attrition))+
+  geom_bar(position="fill")+
+  ggtitle("Attrition Vs. Marital Status")
+
+### Attrition Vs. RelationshipSatisfaction
+employeeData %>% 
+  ggplot(aes(x=RelationshipSatisfaction,fill=Attrition))+
+  geom_histogram()+ggtitle("Attrition Vs. RelationshipSatisfaction")+
+  scale_y_continuous(labels = scales::percent)
+
+### Attrition Vs. BusinessTravel
+employeeData %>% 
+  ggplot(aes(x=BusinessTravel,fill=Attrition))+
+  geom_bar()+ggtitle("Attrition Vs. BusinessTravel")+
+  scale_y_continuous(labels = scales::percent)
+```
+
+# Data Prep - Cleanip and Wrangling
++ Dummy Variable the Categorical Variables
++ Overtime is Changed to 0 or 1
++ Scaled Age, Monthly Income, Hourly Rate, Monthly Rate, Percent Salary hike, and Daily Rate
+```{r,echo=TRUE,warning=FALSE}
+# Created Dataset for Naive Bayes
+employeeData3 = read.csv("CaseStudy2-data.csv")
+
+# Make overtime and attrition column binary 
+employeeData3$OverTime = ifelse(employeeData$OverTime=="Yes",1,0)
+
+# Scaled Age, Monthly Income, Hourly Rate, Monthly Rate, Percent Salary hike, and Daily Rate
+employeeData3$NAge=scale(employeeData3$Age)
+employeeData3$NMonthylyIncome=scale(employeeData3$MonthlyIncome)
+employeeData3$NHourlyRate=scale(employeeData3$HourlyRate)
+employeeData3$NMonthlyRate=scale(employeeData3$MonthlyRate)
+employeeData3$NPercentSalaryHike=scale(employeeData3$PercentSalaryHike)
+employeeData3$NDailyRate=scale(employeeData3$DailyRate)
+
+# Created Dummy Variables for Business Travel
+employeeData3$BTNone = ifelse(employeeData$BusinessTravel=="Non-Travel",1,0)
+employeeData3$BTRare=ifelse(employeeData$BusinessTravel=="Travel_Rarely",1,0)
+employeeData3$BTFreq=ifelse(employeeData$BusinessTravel=="Travel_Frequently",1,0)
+
+# Created Dummy Variables for Departments
+employeeData3$DepHR=ifelse(employeeData$Department=="Human Resources",1,0)
+employeeData3$DepSales=ifelse(employeeData$Department=="Sales",1,0)
+employeeData3$DepRD=ifelse(employeeData$Department=="Research & Development",1,0)
+
+# Created Dummy Variables for Education Field
+employeeData3$EFHR=ifelse(employeeData$EducationField=="Human Resources",1,0)
+employeeData3$EFLS=ifelse(employeeData$EducationField=="Life Sciences",1,0)
+employeeData3$EFM=ifelse(employeeData$EducationField=="Marketing",1,0)
+employeeData3$EFMed=ifelse(employeeData$EducationField=="Medical",1,0)
+employeeData3$EFT=ifelse(employeeData$EducationField=="Technical Degree",1,0)
+employeeData3$EFOther=ifelse(employeeData$EducationField=="Other",1,0)
+
+# Created Dummy Variables for Gender
+employeeData3$Male=ifelse(employeeData$Gender=="Male",1,0)
+employeeData3$Female=ifelse(employeeData$Gender=="Female",1,0)
+
+# Created Dummy Variables for Job Roles
+employeeData3$JRHR=ifelse(employeeData$JobRole=="Healthcare Representative",1,0)
+employeeData3$JRLT=ifelse(employeeData$JobRole=="Laboratory Technician",1,0)
+employeeData3$JRManager=ifelse(employeeData$JobRole=="Manager",1,0)
+employeeData3$JRMD=ifelse(employeeData$JobRole=="Manufacturing Director",1,0)
+employeeData3$JRRD=ifelse(employeeData$JobRole=="Research Director",1,0)
+employeeData3$JRRS=ifelse(employeeData$JobRole=="Research Scientist",1,0)
+employeeData3$JRSE=ifelse(employeeData$JobRole=="Sales Executive",1,0)
+employeeData3$JRSR=ifelse(employeeData$JobRole=="Sales Representative",1,0)
+
+# Created Dummy Variables for Marital Status
+employeeData3$Divorced=ifelse(employeeData$MaritalStatus=="Divorced",1,0)
+employeeData3$Single=ifelse(employeeData$MaritalStatus=="Single",1,0)
+employeeData3$Married=ifelse(employeeData$MaritalStatus=="Married",1,0)
+
+# Created Dummy Variables for Supervisor roles vs Non-Supervisor Roles
+employeeData3$JR1 = ifelse(employeeData$JobRole=="Manager"|employeeData$JobRole=="Research Director",1,0)
+
+```
+# Attrition Model: Naive Bayes
+### Initial Analysis: All Predictors
+In our data modeling comparisons, we found that Naive Bayes was the best model. We first use Naive Bayes using all the predictors. We found that the Naive Bayes gave us the best Sensitivity 0.92, Specificity 0.34, and Accuracy of 0.7088. This fails to meet our condition of meeting at least 60% on both sensitivity and specificity. In our train test set, we used a 70-30 split in our dataset to model using Naive Bayes. Now we are going to do a forward selection by hand on which predictors are the best one by one.
+```{r,message=FALSE,warning=FALSE}
+set.seed(13)
+
+# Naive Bayes Model (Selecting All Variables including scaled Continuous and Categorical Variables) - Ignoring Already Address Variables that do not fit the model
+naive_data=employeeData3
+
+model2 = naive_data %>% select(c("NAge","NDailyRate","DistanceFromHome", "EnvironmentSatisfaction", "NHourlyRate", "JobInvolvement", "JobLevel", "JobSatisfaction", "NMonthylyIncome", "NMonthlyRate", "NumCompaniesWorked", "OverTime", "NPercentSalaryHike", "PerformanceRating", "RelationshipSatisfaction", "YearsAtCompany", "YearsInCurrentRole","YearsSinceLastPromotion", "YearsWithCurrManager", "BTRare","BTFreq","BTNone","DepHR","DepSales","EFHR","EFLS","EFM","EFMed","EFT","EFOther","Male","Female","JRHR","JRLT" ,"JRManager","JRMD","JRRD","JRRS","JRSE","JRSR", "Divorced","Single","Married","StockOptionLevel","TotalWorkingYears","TrainingTimesLastYear","WorkLifeBalance","Attrition"))
+model2$Attrition = as.factor(model2$Attrition)
+
+trainIndices = sample(1:dim(model2)[1],round(.70 * dim(model2)[1]))
+train = model2[trainIndices,]
+test = model2[-trainIndices,]
+
+classifier1 = naiveBayes(model2[,c(1:47)],model2$Attrition)
+
+pred = predict(classifier1,newdata=test)
+confusionMatrix(table(test$Attrition,pred))
+
+
+```
+
+# Final Attrition Model Analysis 
+## Best Model: Naive Bayes
+In our data modeling comparisons, we found that the Naive Bayes gave us the best Sensitivity 0.8941, Specificity 0.8400, and Accuracy of 0.8889. In our train test set, we used a 70-30 split in our dataset to model using Naive Bayes. We found these predictors to be our best model by using Forward Selection. I picked one variable at a time to add into our model, if it increased our Sensitivity, Specificity, and Accuracy, I kept it, and went onto the next variable. Best Predictor Variables: JobLevel, NMonthylyIncome, NumCompaniesWorked, NMonthlyRate, OverTime, PerformanceRating, YearsWithCurrManager, RelationshipSatisfaction, YearsAtCompany, YearsSinceLastPromotion, BTRare
+```{r,message=FALSE,warning=FALSE}
+set.seed(13)
+
+# Naive Bayes Model (Selecting All Variables including scaled Continuous and Categorical Variables) - Ignoring Already Address Variables that do not fit the model
+naive_data=employeeData3
+
+model2 = naive_data %>% select(c("NAge","NDailyRate","DistanceFromHome", "EnvironmentSatisfaction", "NHourlyRate", "JobInvolvement", "JobLevel", "JobSatisfaction", "NMonthylyIncome", "NMonthlyRate", "NumCompaniesWorked", "OverTime", "NPercentSalaryHike", "PerformanceRating", "RelationshipSatisfaction", "YearsAtCompany", "YearsInCurrentRole","YearsSinceLastPromotion", "YearsWithCurrManager", "BTRare","BTFreq","BTNone","DepHR","DepSales","EFHR","EFLS","EFM","EFMed","EFT","EFOther","Male","Female","JRHR","JRLT" ,"JRManager","JRMD","JRRD","JRRS","JRSE","JRSR", "Divorced","Single","Married","StockOptionLevel","TotalWorkingYears","TrainingTimesLastYear","WorkLifeBalance","Attrition"))
+model2$Attrition = as.factor(model2$Attrition)
+
+trainIndices = sample(1:dim(model2)[1],round(.70 * dim(model2)[1]))
+train = model2[trainIndices,]
+test = model2[-trainIndices,]
+
+classifier1 = naiveBayes(model2[,c(7,9,12,6,11,10,13,15,20,21,23,24,26,28)],model2$Attrition)
+
+pred = predict(classifier1,newdata=test)
+confusionMatrix(table(test$Attrition,pred))
+
+
+```
+
+# 2nd Attrition Model: KNN
+### Initial Analysis: All Predictor Variables 
+We performed a KNN model to train our dataset, but failed to meet the requirement of 60% for both sensitivity and specificity. Our KNN model gave us Thus, we will move onto Naive Bayes model.
+
+```{r,message=FALSE,warning=FALSE}
+model = employeeData3 %>% select(c("NAge","NDailyRate","DistanceFromHome", "EnvironmentSatisfaction", "NHourlyRate", "JobInvolvement", "JobLevel", "JobSatisfaction", "NMonthylyIncome", "NMonthlyRate", "NumCompaniesWorked", "OverTime", "NPercentSalaryHike", "PerformanceRating", "RelationshipSatisfaction", "YearsAtCompany", "YearsInCurrentRole","YearsSinceLastPromotion", "YearsWithCurrManager", "BTRare","BTFreq","BTNone","DepHR","DepSales","DepRD","EFHR","EFLS","EFM","EFMed","EFT","EFOther","Male","Female","JRHR","JRLT" ,"JRManager","JRMD","JRRD","JRRS","JRSE","JRSR", "Divorced","Single","Married","StockOptionLevel","TotalWorkingYears","TrainingTimesLastYear","WorkLifeBalance","Attrition"))
+
+set.seed(13)
+iterations = 200
+numks = 20
+splitPerc = .70
+masterAcc = matrix(nrow = iterations, ncol = numks)
+for(j in 1:iterations)
+{
+  trainIndices = sample(1:dim(model)[1],round(splitPerc * dim(model)[1]))
+  train = model[trainIndices,]
+  test = model[-trainIndices,]
+  for(i in 1:numks)
+  {
+    classifications = knn(train[,c(1:47)],test[,c(1:47)],train$Attrition, prob = TRUE, k = i)
+    table(classifications,test$Attrition)
+    CM = confusionMatrix(table(classifications,test$Attrition))
+    masterAcc[j,i] = CM$overall[1]
+  }
+}
+MeanAcc = colMeans(masterAcc)
+plot(seq(1,numks,1),MeanAcc, type = "l")
+which.max(MeanAcc)
+
+classifications = knn(train[,c(1:47)],test[,c(1:47)],train$Attrition, prob = TRUE, k = which.max(MeanAcc))
+table(classifications,test$Attrition)
+confusionMatrix(table(classifications,test$Attrition))
+```
+
+
+# KNN Model  
+Final Analysis: The best Predictor Variablesare: JobLevel, NMonthylyIncome, NumCompaniesWorked, NMonthlyRate, OverTime, PerformanceRating, YearsWithCurrManager, RelationshipSatisfaction, YearsAtCompany, YearsSinceLastPromotion, BTRare
+
+```{r,message=FALSE,warning=FALSE}
+model = employeeData3 %>% select(c("NAge","NDailyRate","DistanceFromHome", "EnvironmentSatisfaction", "NHourlyRate", "JobInvolvement", "JobLevel", "JobSatisfaction", "NMonthylyIncome", "NMonthlyRate", "NumCompaniesWorked", "OverTime", "NPercentSalaryHike", "PerformanceRating", "RelationshipSatisfaction", "YearsAtCompany", "YearsInCurrentRole","YearsSinceLastPromotion", "YearsWithCurrManager", "BTRare","BTFreq","BTNone","DepHR","DepSales","DepRD","EFHR","EFLS","EFM","EFMed","EFT","EFOther","Male","Female","JRHR","JRLT" ,"JRManager","JRMD","JRRD","JRRS","JRSE","JRSR", "Divorced","Single","Married","StockOptionLevel","TotalWorkingYears","TrainingTimesLastYear","WorkLifeBalance","Attrition"))
+head(model)
+
+iterations = 1
+numks = 20
+splitPerc = .70
+masterAcc = matrix(nrow = iterations, ncol = numks)
+for(j in 1:iterations)
+{
+  trainIndices = sample(1:dim(model)[1],round(splitPerc * dim(model)[1]))
+  train = model[trainIndices,]
+  test = model[-trainIndices,]
+  for(i in 1:numks)
+  {
+    classifications = knn(train[,c(7,9,12,6,11,10,13,15,20,21,23,24,26,28)],test[,c(7,9,12,6,11,10,13,15,20,21,23,24,26,28)],train$Attrition, prob = TRUE, k = i)
+    table(classifications,test$Attrition)
+    CM = confusionMatrix(table(classifications,test$Attrition))
+    masterAcc[j,i] = CM$overall[1]
+  }
+  
+}
+MeanAcc = colMeans(masterAcc)
+plot(seq(1,numks,1),MeanAcc, type = "l")
+which.max(MeanAcc)
+max(MeanAcc)
+
+classifications = knn(train[,c(7,9,12,6,11,10,13,15,20,21,23,24,26,28)],test[,c(7,9,12,6,11,10,13,15,20,21,23,24,26,28)],train$Attrition, prob = TRUE, k = which.max(MeanAcc))
+table(classifications,test$Attrition)
+confusionMatrix(table(classifications,test$Attrition))
+```
+
+## Attrition Model Conclusion
+Naive Bayes with the Predctors of JobLevel, MonthlyIncome, NumCompaniesWorked, MonthlyRate, OverTime, PerformanceRating, YearsWithCurrManager, RelationshipSatisfaction, YearsAtCompany, YearsSinceLastPromotion, BTRare is the best predictive model of Attrition.
+
+### Top Three Factors of Attrition:      
++ Monthly Income  
++ Job Role  
++ Overtime
+
+# Predicting Attrition using Test Set
+Naive Bayes Model Predictors: JobLevel, MonthlyIncome, NumCompaniesWorked, MonthlyRate, OverTime, PerformanceRating, YearsWithCurrManager, RelationshipSatisfaction, YearsAtCompany, YearsSinceLastPromotion, BTRare
+
+```{r,message=FALSE,warning=FALSE}
+### Adjusting the No Attrition Dataset to Fit our Model
+employeetestdata=read.csv("CaseStudy2CompSetNoAttrition.csv")
+
+employeetestdata = employeetestdata
+
+employeetestdata$NAge=scale(employeetestdata$Age)
+employeetestdata$NMonthylyIncome=scale(employeetestdata$MonthlyIncome)
+employeetestdata$NHourlyRate=scale(employeetestdata$HourlyRate)
+employeetestdata$NMonthlyRate=scale(employeetestdata$MonthlyRate)
+employeetestdata$NPercentSalaryHike=scale(employeetestdata$PercentSalaryHike)
+employeetestdata$NDailyRate=scale(employeetestdata$DailyRate)
+
+employeetestdata$OverTime = ifelse(employeetestdata$OverTime=="Yes",1,0)
+
+
+employeetestdata$BTNone = ifelse(employeetestdata$BusinessTravel=="Non-Travel",1,0)
+employeetestdata$BTRare=ifelse(employeetestdata$BusinessTravel=="Travel_Rarely",1,0)
+employeetestdata$BTFreq=ifelse(employeetestdata$BusinessTravel=="Travel_Frequently",1,0)
+
+employeetestdata$DepHR=ifelse(employeetestdata$Department=="Human Resources",1,0)
+employeetestdata$DepSales=ifelse(employeetestdata$Department=="Sales",1,0)
+
+employeetestdata$EFHR=ifelse(employeetestdata$EducationField=="Human Resources",1,0)
+employeetestdata$EFLS=ifelse(employeetestdata$EducationField=="Life Sciences",1,0)
+employeetestdata$EFM=ifelse(employeetestdata$EducationField=="Marketing",1,0)
+employeetestdata$EFMed=ifelse(employeetestdata$EducationField=="Medical",1,0)
+employeetestdata$EFT=ifelse(employeetestdata$EducationField=="Technical Degree",1,0)
+employeetestdata$EFOther=ifelse(employeetestdata$EducationField=="Other",1,0)
+
+employeetestdata$Male=ifelse(employeetestdata$Gender=="Male",1,0)
+employeetestdata$Female=ifelse(employeetestdata$Gender=="Female",1,0)
+
+employeetestdata$JRHR=ifelse(employeetestdata$JobRole=="Healthcare Representative",1,0)
+employeetestdata$JRLT=ifelse(employeetestdata$JobRole=="Laboratory Technician",1,0)
+employeetestdata$JRManager=ifelse(employeetestdata$JobRole=="Manager",1,0)
+employeetestdata$JRMD=ifelse(employeetestdata$JobRole=="Manufacturing Director",1,0)
+employeetestdata$JRRD=ifelse(employeetestdata$JobRole=="Research Director",1,0)
+employeetestdata$JRRS=ifelse(employeetestdata$JobRole=="Research Scientist",1,0)
+employeetestdata$JRSE=ifelse(employeetestdata$JobRole=="Sales Executive",1,0)
+employeetestdata$JRSR=ifelse(employeetestdata$JobRole=="Sales Representative",1,0)
+
+employeetestdata$Divorced=ifelse(employeetestdata$MaritalStatus=="Divorced",1,0)
+employeetestdata$Single=ifelse(employeetestdata$MaritalStatus=="Single",1,0)
+employeetestdata$Married=ifelse(employeetestdata$MaritalStatus=="Married",1,0)
+```
+
+### Naive Prediction Model with the No Attrtion Test Set
+```{r, message=FALSE,warning=FALSE}
+prednoattrition = predict(classifier1,newdata=employeetestdata)
+
+employeetestdata$Attrition=unlist(prednoattrition)
+
+Case2PredictionsAttritionNguyen = data.frame(c(employeetestdata$ID),c(employeetestdata$Attrition))
+
+#Prediction Attrition Set - See CaseStudyPredictionAttrition in Github for full R code
+head(Case2PredictionsAttritionNguyen)
+
+### Prediction Attrition of Test Set
+employeetestdata %>% ggplot(aes(x=Attrition,fill=Attrition)) + 
+  geom_bar()+
+  ggtitle("Predicted Attrition Count") +
+  xlab("Attrition")+ylab("Count")
+
+###Count of "Yes" and "No"
+employeetestdata %>% count(Attrition)
+```
+
+
+# Predicting Monthly Income - Multiple Linear Regression
+For the second part of our assignment, we will be running a prediction on Salary. We are going to run a multiple linear regression to find the best predictor that are statistically significant. From there we will choose those and run an interaction to find more statistically significant values. 
+
+```{r,echo=FALSE, message=FALSE,warning=FALSE,results="hide"}
+### Importing Test Data with No Salary
+employee_nosalary = read_excel("CaseStudy2CompSetNoSalary.xlsx")
+```
+
+```{r,echo=FALSE, message=FALSE,warning=FALSE,results="hide"}
+### Setting a dataset to have alll the necessary predictor variables
+lm_salarydf = employeeData3 %>% select(c("Age","DailyRate","DistanceFromHome", "EnvironmentSatisfaction", "HourlyRate", "JobInvolvement", "JobLevel", "JobSatisfaction", "MonthlyIncome", "MonthlyRate", "NumCompaniesWorked", "OverTime", "PercentSalaryHike", "PerformanceRating", "RelationshipSatisfaction", "YearsAtCompany", "YearsInCurrentRole","YearsSinceLastPromotion", "YearsWithCurrManager", "BTRare","BTFreq","BTNone","DepHR","DepSales","DepRD","EFHR","EFLS","EFM","EFMed","EFT","EFOther","Male","Female","JRHR","JRLT" ,"JRManager","JRMD","JRRD","JRRS","JRSE","JRSR", "Divorced","Single","Married","StockOptionLevel","TotalWorkingYears","TrainingTimesLastYear","WorkLifeBalance","Attrition"))
+```
+
+### Multiple Linear Regression Model of All Other Variables (Excluding Attrition)
+```{r, message=FALSE,warning=FALSE}
+### Multiple Linear Regression using All Predictors
+lmsalary_model1=lm(MonthlyIncome~.,data=lm_salarydf)
+
+### Summary of the Linear Model
+summary(lmsalary_model1)
+
+```
+
+### Statistical Significant P-values < .05: 
+
+JobLeve, MonthlyRate, PerformanceRating, YearsSinceLastPromotion, BTRare, DepSales, JRManager, JRRD, and TotalWorkingYears were all values where the p-value was close to < .05. 
+
+We are now going to run a model with those variables.  
+**Results:** RSME = 1062, Adjusted R^2 = 0.9466
+```{r, message=FALSE,warning=FALSE}
+lmsalary_model2=lm(MonthlyIncome~JobLevel+MonthlyRate+PerformanceRating+BTRare+YearsSinceLastPromotion+DepSales+JRMD+JRManager+JRRD+TotalWorkingYears,data=lm_salarydf)
+
+summary(lmsalary_model2)
+```
+
+Now we are going to run another model with those variables and their interactions  
+**Results:** RSME of 1047, Adjusted R^2 = 0.9481
+```{r, message=FALSE,warning=FALSE}
+lmsalary_model3=lm(MonthlyIncome~(JobLevel+MonthlyRate+PerformanceRating+BTRare+YearsSinceLastPromotion+DepSales+JRMD+JRManager+JRRD+TotalWorkingYears)^2,data=lm_salarydf)
+
+summary(lmsalary_model3)
+```
+
+Now we wants to run the model again with just the statistical significant p-values:
+JobLevel, JRManager, JRRD, JobLevel:YearsSinceLastPromotion, JobLevel:DepSales, JobLevel:TotalWorkingYears, MonthlyRate:TotalWorkingYears,YearsSinceLastPromotion:TotalWorkingYears, DepSales:JRManager  
+**Results:** RSME of 1067
+```{r, message=FALSE,warning=FALSE}
+lmsalary_model4=lm(MonthlyIncome~JobLevel+JRManager+JRRD++JobLevel:TotalWorkingYears+MonthlyRate:TotalWorkingYears+YearsSinceLastPromotion:TotalWorkingYears+DepSales:JRManager+YearsSinceLastPromotion:BTRare,data=lm_salarydf)
+
+summary(lmsalary_model4)
+```
+
+
+Our last model we want is to do a full interaction on our dataset
+**Results:** RSME is 981
+```{r, message=FALSE,warning=FALSE}
+lmsalary_model5=lm(MonthlyIncome~(.)^2,data=lm_salarydf)
+```
+
+For my final model: I took the variables that were significant in our all interaction and added it to our data, and found that these were the ones to give us the best RSME = 1063.
+```{r, message=FALSE,warning=FALSE}
+lmsalary_model6=lm(MonthlyIncome~JobLevel+JRManager+JRRD++JobLevel:TotalWorkingYears+MonthlyRate:TotalWorkingYears+YearsSinceLastPromotion:TotalWorkingYears+DepSales:JRManager+YearsSinceLastPromotion:BTRare+EnvironmentSatisfaction:WorkLifeBalance,data=lm_salarydf)
+summary(lmsalary_model6)
+```
+
+
+### Forward Selection Model
+We used a forward selection model for all the statistically signficiant values without interactions, then ran it again with interactions for all the statistically signifidcant.
+
+
+```{r, message=FALSE,warning=FALSE}
+train1 = employeeData %>% select(c("Age","DailyRate","DistanceFromHome", "EnvironmentSatisfaction", "HourlyRate", "JobInvolvement", "JobLevel", "JobSatisfaction", "MonthlyIncome", "MonthlyRate", "NumCompaniesWorked", "OverTime", "PercentSalaryHike", "PerformanceRating", "RelationshipSatisfaction", "YearsAtCompany", "YearsInCurrentRole","YearsSinceLastPromotion", "YearsWithCurrManager", "JobRole", "BusinessTravel","Department","EducationField","Gender","JobRole","StockOptionLevel","TotalWorkingYears","TrainingTimesLastYear","WorkLifeBalance","Attrition"))
+fit1 = lm(MonthlyIncome~.,data=train1)
+
+fit2 = lm(MonthlyIncome~(JobLevel + JobRole + TotalWorkingYears + BusinessTravel + Gender + DailyRate + MonthlyRate + YearsWithCurrManager + YearsSinceLastPromotion + DistanceFromHome + PerformanceRating + PercentSalaryHike + Department)^2,data=train1)
+
+fit3 = lm(MonthlyIncome~+ JobLevel + JobLevel:JobRole + JobLevel:BusinessTravel + JobLevel:Gender + JobLevel:PerformanceRating + JobLevel:Department + JobRole:TotalWorkingYears + JobRole:Department + DailyRate + DistanceFromHome + YearsWithCurrManager + PerformanceRating + TotalWorkingYears + MonthlyRate + PercentSalaryHike + Gender + YearsSinceLastPromotion + BusinessTravel + Department + TotalWorkingYears:MonthlyRate + JobRole + YearsSinceLastPromotion:DistanceFromHome + DailyRate:DistanceFromHome + JobRole:PercentSalaryHike + TotalWorkingYears:BusinessTravel + TotalWorkingYears:YearsSinceLastPromotion + JobLevel:YearsSinceLastPromotion + DailyRate:PerformanceRating + JobLevel:MonthlyRate + JobRole:Gender + TotalWorkingYears:DailyRate + YearsSinceLastPromotion:PerformanceRating + DailyRate:MonthlyRate + BusinessTravel:PercentSalaryHike + DailyRate:PercentSalaryHike,data=train1)
+
+summary(fit3)
+
+```
+###Conclusion of Salary Prediction Model
+The Multiple Linear Regression with Interaction terms is the best model with the best balance RSME of 1063.  
+The Best Predictors are JobLevel, JobRole, TotalWorkingYears, Business Travel, Gender, Daily Rate, Monthly RateYeraswithCurrManager, Years Since Last Promo, Distance From Home, Performance Rating Percent Salary Hike, and Department.
+
+
+# Ending Conclusion
+**Attrition Model: Naive Bayes**  
++ Naive Bayes with selected Predictors was better than the KNN model.  
++ The Predictor Variables we use for Naives Makes Sense in how they were used in our Models to give us the best Accuracy, Sensitivity, and Specificity.  
++ We might have some errors due to my own hand selection of models by putting on one variable at a time.  
++ The best top three predictors of Attrition are JobLevel, Monthly Income, and Overtime
+
+**Salary Model: Multiple Linear Regression**    
++ Multiple Linear Regression using the selected Predictors from the interactions and overall regression provided statistical values that makes sense.  
++ Interaction terms created powerful p-values we can use for our model.  
++ The best level predictor of incomes are Job Level, Total Working Years, and Job Roles were our top three salary prediction predictors.  
