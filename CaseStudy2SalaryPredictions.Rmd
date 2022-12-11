@@ -1,0 +1,32 @@
+---
+title: "EmployeeSalaryPredictions"
+author: "Vo Nguyen"
+date: "2022-11-30"
+output: html_document
+---
+
+
+```{r setup, include=FALSE}
+employeeData = read.csv("CaseStudy2-data.csv")
+
+train1 = employeeData %>% select(c("Age","DailyRate","DistanceFromHome", "EnvironmentSatisfaction", "HourlyRate", "JobInvolvement", "JobLevel", "JobSatisfaction", "MonthlyIncome", "MonthlyRate", "NumCompaniesWorked", "OverTime", "PercentSalaryHike", "PerformanceRating", "RelationshipSatisfaction", "YearsAtCompany", "YearsInCurrentRole","YearsSinceLastPromotion", "YearsWithCurrManager", "JobRole", "BusinessTravel","Department","EducationField","Gender","JobRole","StockOptionLevel","TotalWorkingYears","TrainingTimesLastYear","WorkLifeBalance","Attrition"))
+
+fit3 = lm(MonthlyIncome~+ JobLevel + JobLevel:JobRole + JobLevel:BusinessTravel + JobLevel:Gender + JobLevel:PerformanceRating + JobLevel:Department + JobRole:TotalWorkingYears + JobRole:Department + DailyRate + DistanceFromHome + YearsWithCurrManager + PerformanceRating + TotalWorkingYears + MonthlyRate + PercentSalaryHike + Gender + YearsSinceLastPromotion + BusinessTravel + Department + TotalWorkingYears:MonthlyRate + JobRole + YearsSinceLastPromotion:DistanceFromHome + DailyRate:DistanceFromHome + JobRole:PercentSalaryHike + TotalWorkingYears:BusinessTravel + TotalWorkingYears:YearsSinceLastPromotion + JobLevel:YearsSinceLastPromotion + DailyRate:PerformanceRating + JobLevel:MonthlyRate + JobRole:Gender + TotalWorkingYears:DailyRate + YearsSinceLastPromotion:PerformanceRating + DailyRate:MonthlyRate + BusinessTravel:PercentSalaryHike + DailyRate:PercentSalaryHike,data=train1)
+
+summary(fit3)
+
+
+```
+
+```{r setup, include=FALSE}
+employeesalarytest=read_xlsx("CaseStudy2CompSet No Salary (2).xlsx")
+
+salary_pred = predict(fit3, employeesalarytest)
+
+employeesalarytest$predictedSalary=unlist(salary_pred)
+
+Case2PredictionsSalaryNguyen = data.frame(c(employeesalarytest$ID),c(employeesalarytest$predictedSalary))
+
+write.csv(Case2PredictionsSalaryNguyen,"F:\\Doing Data Science\\Project 2\\Excel\\Case2PredictionsNguyen Salary.csv")
+
+```
