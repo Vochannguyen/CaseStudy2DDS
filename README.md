@@ -1,6 +1,7 @@
 # Case Study 02 - Employee Attrition for DDSAnalytics
 
-YouTube Presentation: https://www.youtube.com/watch?v=3SXL037Iprc RShiny App:https://vochannguyen.shinyapps.io/VoShiny2/
+YouTube Presentation: https://www.youtube.com/watch?v=3SXL037Iprc   
+RShiny App:https://vochannguyen.shinyapps.io/VoShiny2/  
 
 ## Introduction and Purpose
 DDSAnalytics company is specializing in talent management for Fortune 100 companies. We, as data scientists, are going leverage our talents and skill for their talent management department. The executive leadership has identified predicting employee turnover, and we will be creating a model to predict attrition. Additionally, we will be using a selection model to predict salary based on our predictor variables.
